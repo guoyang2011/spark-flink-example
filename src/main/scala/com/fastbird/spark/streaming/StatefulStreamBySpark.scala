@@ -1,4 +1,4 @@
-package com.fastbird.streaming.spark
+package com.fastbird.spark.streaming
 
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -89,8 +89,10 @@ class StatefulStreamBySpark {
       val newState=state.getOrElse(Seq.empty[String])
       Option(newState++values)
     }
-    val mappedStatefulStream = source.map(idx=>(idx%5,idx.toString))
-    mappedStatefulStream.groupByKey().mapValues(ir=>ir.toList.reduce(_+","+_)).mapWithState(spec).foreachRDD{
+    val mappedStatefulStream = source.transform(_.coalesce(5,false)).map(idx=>(idx%5,idx.toString))
+    val statefulStream=mappedStatefulStream.groupByKey().mapValues(ir=>ir.toList.reduce(_+","+_)).mapWithState(spec)
+
+    statefulStream.foreachRDD{
       rdd=>rdd.collect().foreach{
         case (key,value,state)=>{
           val sb= state.map{r=>
@@ -105,7 +107,9 @@ class StatefulStreamBySpark {
 
         }
       }
+
     }
+
     streaming.start()
     streaming.awaitTermination()
 
